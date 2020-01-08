@@ -261,12 +261,14 @@ int main(int argc, char **argv) {
     client_config *testsetup;
     testsetup = malloc(sizeof(client_config));
 
-    strcpy(testsetup->ipaddress, "127.0.0.1");
-    testsetup->port=1502;
+    strcpy(testsetup->ipaddress, "192.168.1.11");
+    testsetup->port=502;
     testsetup->offset=0;
     testsetup->poll_delay=2;
     testsetup->coil_start = 0;
-    testsetup->coil_num = 5;
+    testsetup->coil_num = 8;
+    testsetup->input_start = 0;
+    testsetup->input_num = 8;
 
     fprintf(stderr, "Creating poll thread\n");
     if(pthread_create(&pollthread, NULL, poll_station, testsetup)){
