@@ -5,6 +5,7 @@
  * it under the terms of the BSD License.
  */
 
+
 #include <stdio.h>
 #include <limits.h>
 #include <unistd.h>
@@ -14,6 +15,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <signal.h>
+#include <math.h>
 
 #include <modbus.h>
 
@@ -27,7 +29,12 @@
 #endif
 
 #define NB_CONNECTION    INT_MAX
-#define MODBUS_SIZE   0xFFFF
+
+#include <pthread.h>
+
+// Polling timer
+time_t last_polled;
+int data_valid = 0;
 
 modbus_t *ctx = NULL;
 int server_socket = -1;
@@ -50,7 +57,20 @@ int is_valid_ip(char *ip_address) {
     return result != 0;
 }
 
+
+void *poll_station(void *arg){
+  while(1)
+  {
+    sleep(1);
+    printf("Poll");
+    }
+}
+
 int main(int argc, char **argv) {
+
+    pthread_t pollthread;
+
+    // Modbus vars
     uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
     int master_socket;
     int rc;
@@ -63,7 +83,7 @@ int main(int argc, char **argv) {
     int c;
     char *ip_addr = NULL;
     char *port_s = NULL;
-    int port;
+    int mb_port;
 
     opterr = 0;
 
@@ -94,28 +114,28 @@ int main(int argc, char **argv) {
         printf ("Non-option argument %s\n", argv[index]);
 
     if (ip_addr == NULL) {
-        ip_addr = "127.0.0.1";
+        ip_addr = "0.0.0.0";
     } else if(!is_valid_ip(ip_addr)) {
         printf("%s is not a valid ip address, please try with a proper ip address \n", ip_addr);
         return -1;
     }
 
     if (port_s == NULL) {
-        port = 1503;
+        mb_port = 1503;
     } else if (atoi(port_s) > 0) {
-        port = atoi(port_s);
+        mb_port = atoi(port_s);
     } else {
         printf("%s is not a valid port, please try with a proper port \n", port_s);
         return -1;
     }
 
-    printf("ip_addr : %s, port : %d \n", ip_addr, port);
+    printf("ip_addr : %s, port : %d \n", ip_addr, mb_port);
 
-    ctx = modbus_new_tcp(ip_addr, port);
+    ctx = modbus_new_tcp(ip_addr, mb_port);
 
-    /* For reading registers and bits, the addesses go from 0 to MODBUS_SIZE */
-    mb_mapping = modbus_mapping_new(MODBUS_SIZE, MODBUS_SIZE,
-                                    MODBUS_SIZE, MODBUS_SIZE);
+    /* For reading registers and bits, the addesses go from 0 to 0xFFFF */
+    mb_mapping = modbus_mapping_new(0xFF, 0xFF,
+                                    0xFF, 0xFF);
     if (mb_mapping == NULL) {
         fprintf(stderr, "Failed to allocate the mapping: %s\n",
                 modbus_strerror(errno));
@@ -135,13 +155,25 @@ int main(int argc, char **argv) {
     /* Keep track of the max file descriptor */
     fdmax = server_socket;
 
+
+    //pthread_create(pthread_t *restrict __newthread,
+    //const pthread_attr_t *restrict __attr,
+    //void *(*__start_routine)(void *),
+    //void *restrict __arg)
+    int throwaway;
+    fprintf(stderr, "Creating poll thread\n");
+    if(pthread_create(&pollthread, NULL, poll_station, &throwaway)){
+      fprintf(stderr, "Poll thread creation failed\n");
+    }
+
+// MAIN POLLING LOOP
     for (;;) {
+
         rdset = refset;
         if (select(fdmax+1, &rdset, NULL, NULL, NULL) == -1) {
             perror("Server select() failure.");
             close_sigint(1);
         }
-
         /* Run through the existing connections looking for data to be
          * read */
         for (master_socket = 0; master_socket <= fdmax; master_socket++) {
@@ -151,6 +183,7 @@ int main(int argc, char **argv) {
             }
 
             if (master_socket == server_socket) {
+
                 /* A client is asking a new connection */
                 socklen_t addrlen;
                 struct sockaddr_in clientaddr;
