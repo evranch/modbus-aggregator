@@ -40,6 +40,22 @@ modbus_t *ctx = NULL;
 int server_socket = -1;
 modbus_mapping_t *mb_mapping;
 
+typedef struct client_config
+{
+  char ipaddress[50];
+  int port;
+  int coil_start;
+  int coil_num;
+  int input_start;
+  int input_num;
+  int hr_start;
+  int hr_num;
+  int ir_start;
+  int ir_num;
+  int offset;
+  int poll_delay;
+} client_config;
+
 static void close_sigint(int dummy)
 {
     if (server_socket != -1) {
@@ -57,13 +73,81 @@ int is_valid_ip(char *ip_address) {
     return result != 0;
 }
 
+void *poll_station(void *client_struct)
+{
 
-void *poll_station(void *arg){
+/*
+struct client_config
+{
+  char ipaddress[50];
+  int coil_start;
+  int coil_num;
+  int input_start;
+  int input_num;
+  int hr_start;
+  int hr_num;
+  int ir_start;
+  int ir_num;
+  int poll_delay;
+}*/
+
+  modbus_t *mb_poll;
+  uint8_t tab_bits[50];
+  uint8_t tab_input_bits[50];
+  uint16_t tab_input_registers[50];
+  uint16_t tab_registers[50];
+
+  client_config thisclient = *((client_config*)client_struct);
+
+  printf("Polling IP:%s Port:%d at offset %d\n",thisclient.ipaddress,thisclient.port,thisclient.offset);
+
+  mb_poll = modbus_new_tcp(thisclient.ipaddress, thisclient.port);
+  modbus_connect(mb_poll);
+
   while(1)
   {
-    sleep(1);
-    printf("Poll");
+    sleep(thisclient.poll_delay);
+    printf("Poll @ %d\n",thisclient.offset);
+
+    // Read coil bits
+    modbus_read_bits(mb_poll, thisclient.coil_start, thisclient.coil_num, tab_bits);
+
+    // Read input bits
+    modbus_read_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits);
+
+    // Read input registers
+    modbus_read_input_registers(mb_poll, thisclient.ir_start, thisclient.ir_num, tab_input_registers);
+
+    // Read holding registers
+    modbus_read_registers(mb_poll, thisclient.hr_start, thisclient.hr_num, tab_registers);
+
+    // Copy read coils into main modbus table
+    for (size_t i = 0; i < thisclient.coil_num; i++)
+    {
+      mb_mapping->tab_bits[thisclient.offset+i]=tab_bits[i];
     }
+
+    // Copy read bits into main modbus table
+    for (size_t i = 0; i < thisclient.input_num; i++)
+    {
+      mb_mapping->tab_input_bits[thisclient.offset+i]=tab_input_bits[i];
+    }
+
+    // Copy read input registers into main modbus table
+    for (size_t i = 0; i < thisclient.ir_num; i++)
+    {
+      mb_mapping->tab_input_registers[thisclient.offset+i]=tab_input_registers[i];
+    }
+
+    // Copy read holding registers into main modbus table
+    for (size_t i = 0; i < thisclient.hr_num; i++)
+    {
+      mb_mapping->tab_registers[thisclient.offset+i]=tab_registers[i];
+    }
+  }
+
+  modbus_close(mb_poll);
+  modbus_free(mb_poll);
 }
 
 int main(int argc, char **argv) {
@@ -155,14 +239,37 @@ int main(int argc, char **argv) {
     /* Keep track of the max file descriptor */
     fdmax = server_socket;
 
+    /*
+    struct client_config
+    {
+      char ipaddress[50];
+      int coil_start;
+      int coil_num;
+      int input_start;
+      int input_num;
+      int hr_start;
+      int hr_num;
+      int ir_start;
+      int ir_num;
+      int poll_delay;
+    }*/
 
     //pthread_create(pthread_t *restrict __newthread,
     //const pthread_attr_t *restrict __attr,
     //void *(*__start_routine)(void *),
     //void *restrict __arg)
-    int throwaway;
+    client_config *testsetup;
+    testsetup = malloc(sizeof(client_config));
+
+    strcpy(testsetup->ipaddress, "127.0.0.1");
+    testsetup->port=1502;
+    testsetup->offset=0;
+    testsetup->poll_delay=2;
+    testsetup->coil_start = 0;
+    testsetup->coil_num = 5;
+
     fprintf(stderr, "Creating poll thread\n");
-    if(pthread_create(&pollthread, NULL, poll_station, &throwaway)){
+    if(pthread_create(&pollthread, NULL, poll_station, testsetup)){
       fprintf(stderr, "Poll thread creation failed\n");
     }
 
