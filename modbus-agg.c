@@ -94,7 +94,7 @@ struct client_config
 }*/
 
   modbus_t *mb_poll;
-  uint8_t tab_bits[50], tab_bits_slave[50], tab_bits_master[50];
+  uint8_t tab_bits[50], tab_bits_slave[50]={0}, tab_bits_master[50]={0};
   uint8_t tab_input_bits[50];
   uint16_t tab_input_registers[50];
   uint16_t tab_registers[50];
@@ -157,7 +157,13 @@ struct client_config
     }
 
     // Read input bits
-    modbus_read_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits);
+    modbus_read_input_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits);
+
+    // Debug input bits
+    for (size_t i = 0; i < thisclient.coil_num; i++)
+    {
+      printf("Input %d:%d\n",i,tab_input_bits[i]);
+    }
 
     // Copy read bits into main modbus table
     for (size_t i = 0; i < thisclient.input_num; i++)
@@ -243,7 +249,7 @@ int main(int argc, char **argv) {
     }
 
     if (port_s == NULL) {
-        mb_port = 1503;
+        mb_port = 1505;
     } else if (atoi(port_s) > 0) {
         mb_port = atoi(port_s);
     } else {
