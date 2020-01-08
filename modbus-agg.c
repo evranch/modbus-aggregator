@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <math.h>
+#include <stdbool.h>
 
 #include <modbus.h>
 
@@ -44,6 +45,7 @@ typedef struct client_config
 {
   char ipaddress[50];
   int port;
+  int slaveid;
   int coil_start;
   int coil_num;
   int input_start;
@@ -92,16 +94,18 @@ struct client_config
 }*/
 
   modbus_t *mb_poll;
-  uint8_t tab_bits[50];
+  uint8_t tab_bits[50], tab_bits_slave[50], tab_bits_master[50];
   uint8_t tab_input_bits[50];
   uint16_t tab_input_registers[50];
   uint16_t tab_registers[50];
 
   client_config thisclient = *((client_config*)client_struct);
 
-  printf("Polling IP:%s Port:%d at offset %d\n",thisclient.ipaddress,thisclient.port,thisclient.offset);
+    printf("Polling IP:%s Port:%d at offset %d, slaveid %d\n",thisclient.ipaddress,thisclient.port,thisclient.offset,thisclient.slaveid);
 
   mb_poll = modbus_new_tcp(thisclient.ipaddress, thisclient.port);
+
+  modbus_set_slave(mb_poll,thisclient.slaveid);
   modbus_connect(mb_poll);
 
   while(1)
@@ -112,20 +116,48 @@ struct client_config
     // Read coil bits
     modbus_read_bits(mb_poll, thisclient.coil_start, thisclient.coil_num, tab_bits);
 
-    // Read input bits
-    modbus_read_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits);
-
-    // Read input registers
-    modbus_read_input_registers(mb_poll, thisclient.ir_start, thisclient.ir_num, tab_input_registers);
-
-    // Read holding registers
-    modbus_read_registers(mb_poll, thisclient.hr_start, thisclient.hr_num, tab_registers);
-
-    // Copy read coils into main modbus table
+    // Debug tables
     for (size_t i = 0; i < thisclient.coil_num; i++)
     {
-      mb_mapping->tab_bits[thisclient.offset+i]=tab_bits[i];
+      printf("Master:%d Last:%d Slave:%d Last:%d\n",mb_mapping->tab_bits[thisclient.offset+i],tab_bits_master[i],tab_bits[i],tab_bits_slave[i]);
     }
+
+    // Check for change on slave side and update last state
+    bool slave_changed = false;
+    for (size_t i = 0; i < thisclient.coil_num; i++)
+    {
+      if (tab_bits[i] != tab_bits_slave[i])
+        slave_changed = true;
+
+      tab_bits_slave[i] = tab_bits[i];
+    }
+
+    // Check for change on master side and update last state
+    bool master_changed = false;
+    for (size_t i = 0; i < thisclient.coil_num; i++)
+    {
+      if (mb_mapping->tab_bits[thisclient.offset+i] != tab_bits_master[i])
+        master_changed = true;
+
+      tab_bits_master[i] = mb_mapping->tab_bits[thisclient.offset+i];
+    }
+
+    // Prioritize change pushed from master
+    if (master_changed)
+    {
+      // Write coils from main mobdus table
+      modbus_write_bits(mb_poll, thisclient.coil_start, thisclient.coil_num,&mb_mapping->tab_bits[thisclient.offset]);
+    } else if (slave_changed)
+    {
+      // Copy read coils into main modbus table
+      for (size_t i = 0; i < thisclient.coil_num; i++)
+      {
+        mb_mapping->tab_bits[thisclient.offset+i]=tab_bits[i];
+      }
+    }
+
+    // Read input bits
+    modbus_read_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits);
 
     // Copy read bits into main modbus table
     for (size_t i = 0; i < thisclient.input_num; i++)
@@ -133,11 +165,17 @@ struct client_config
       mb_mapping->tab_input_bits[thisclient.offset+i]=tab_input_bits[i];
     }
 
+    // Read input registers
+    modbus_read_input_registers(mb_poll, thisclient.ir_start, thisclient.ir_num, tab_input_registers);
+
     // Copy read input registers into main modbus table
     for (size_t i = 0; i < thisclient.ir_num; i++)
     {
       mb_mapping->tab_input_registers[thisclient.offset+i]=tab_input_registers[i];
     }
+
+    // Read holding registers
+    modbus_read_registers(mb_poll, thisclient.hr_start, thisclient.hr_num, tab_registers);
 
     // Copy read holding registers into main modbus table
     for (size_t i = 0; i < thisclient.hr_num; i++)
@@ -264,7 +302,8 @@ int main(int argc, char **argv) {
     strcpy(testsetup->ipaddress, "192.168.1.11");
     testsetup->port=502;
     testsetup->offset=0;
-    testsetup->poll_delay=2;
+    testsetup->slaveid=1;
+    testsetup->poll_delay=1;
     testsetup->coil_start = 0;
     testsetup->coil_num = 8;
     testsetup->input_start = 0;
@@ -323,6 +362,7 @@ int main(int argc, char **argv) {
                     /* This example server in ended on connection closing or
                      * any errors. */
                     printf("Connection closed on socket %d\n", master_socket);
+                    printf("Error %s\n",modbus_strerror(errno));
                     close(master_socket);
 
                     /* Remove from reference set */
