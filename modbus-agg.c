@@ -44,7 +44,7 @@ modbus_mapping_t *mb_mapping;
 typedef struct client_config
 {
   char ipaddress[50];
-  int port;
+  char port[10];
   int slaveid;
   int coil_start;
   int coil_num;
@@ -101,9 +101,9 @@ struct client_config
 
   client_config thisclient = *((client_config*)client_struct);
 
-    printf("Polling IP:%s Port:%d at offset %d, slaveid %d\n",thisclient.ipaddress,thisclient.port,thisclient.offset,thisclient.slaveid);
+    printf("Polling IP:%s Port:%s at offset %d, slaveid %d\n",thisclient.ipaddress,thisclient.port,thisclient.offset,thisclient.slaveid);
 
-  mb_poll = modbus_new_tcp(thisclient.ipaddress, thisclient.port);
+  mb_poll = modbus_new_tcp_pi(thisclient.ipaddress, thisclient.port);
 
   modbus_set_slave(mb_poll,thisclient.slaveid);
   modbus_connect(mb_poll);
@@ -162,7 +162,7 @@ struct client_config
     // Debug input bits
     for (size_t i = 0; i < thisclient.coil_num; i++)
     {
-      printf("Input %d:%d\n",i,tab_input_bits[i]);
+      printf("Input %ld:%d\n",i,tab_input_bits[i]);
     }
 
     // Copy read bits into main modbus table
@@ -287,6 +287,7 @@ int main(int argc, char **argv) {
     struct client_config
     {
       char ipaddress[50];
+      char port[10];
       int coil_start;
       int coil_num;
       int input_start;
@@ -305,8 +306,8 @@ int main(int argc, char **argv) {
     client_config *testsetup;
     testsetup = malloc(sizeof(client_config));
 
-    strcpy(testsetup->ipaddress, "192.168.1.11");
-    testsetup->port=502;
+    strcpy(testsetup->ipaddress, "mb-quonset.evranch");
+    strcpy(testsetup->port,"502");
     testsetup->offset=0;
     testsetup->slaveid=1;
     testsetup->poll_delay=1;
