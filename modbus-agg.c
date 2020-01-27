@@ -98,6 +98,7 @@ struct client_config
   uint8_t tab_input_bits[50];
   uint16_t tab_input_registers[50];
   uint16_t tab_registers[50];
+  bool connection_live = false;
 
   client_config thisclient = *((client_config*)client_struct);
 
@@ -105,16 +106,36 @@ struct client_config
 
   mb_poll = modbus_new_tcp_pi(thisclient.ipaddress, thisclient.port);
 
+  modbus_set_error_recovery(mb_poll, MODBUS_ERROR_RECOVERY_LINK);
+
   modbus_set_slave(mb_poll,thisclient.slaveid);
-  modbus_connect(mb_poll);
 
   while(1)
   {
+
+    // If connection is broken, close it and block until reopened
+    if (!connection_live)
+    {
+      modbus_close(mb_poll);
+      while(modbus_connect(mb_poll) != 0)
+      {
+          mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num] = connection_live;
+          perror("Connection broken, reconnecting");
+          sleep(thisclient.poll_delay);
+      }
+    }
+
+    connection_live = true;
+
     sleep(thisclient.poll_delay);
     printf("Poll @ %d\n",thisclient.offset);
 
     // Read coil bits
-    modbus_read_bits(mb_poll, thisclient.coil_start, thisclient.coil_num, tab_bits);
+    if (modbus_read_bits(mb_poll, thisclient.coil_start, thisclient.coil_num, tab_bits) == -1)
+    {
+      connection_live = false;
+      continue;
+    }
 
     // Debug tables
     for (size_t i = 0; i < thisclient.coil_num; i++)
@@ -157,7 +178,11 @@ struct client_config
     }
 
     // Read input bits
-    modbus_read_input_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits);
+    if(modbus_read_input_bits(mb_poll, thisclient.input_start, thisclient.input_num, tab_input_bits) == -1)
+    {
+      connection_live = false;
+      continue;
+    }
 
     // Debug input bits
     for (size_t i = 0; i < thisclient.coil_num; i++)
@@ -172,7 +197,11 @@ struct client_config
     }
 
     // Read input registers
-    modbus_read_input_registers(mb_poll, thisclient.ir_start, thisclient.ir_num, tab_input_registers);
+    if (modbus_read_input_registers(mb_poll, thisclient.ir_start, thisclient.ir_num, tab_input_registers) == -1)
+    {
+      connection_live = false;
+      continue;
+    }
 
     // Copy read input registers into main modbus table
     for (size_t i = 0; i < thisclient.ir_num; i++)
@@ -181,13 +210,20 @@ struct client_config
     }
 
     // Read holding registers
-    modbus_read_registers(mb_poll, thisclient.hr_start, thisclient.hr_num, tab_registers);
+    if(modbus_read_registers(mb_poll, thisclient.hr_start, thisclient.hr_num, tab_registers) == -1)
+    {
+      connection_live = false;
+      continue;
+    }
 
     // Copy read holding registers into main modbus table
     for (size_t i = 0; i < thisclient.hr_num; i++)
     {
       mb_mapping->tab_registers[thisclient.offset+i]=tab_registers[i];
     }
+
+    // Set connection good flag if we made it through all requests
+    mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num] = connection_live;
   }
 
   modbus_close(mb_poll);
