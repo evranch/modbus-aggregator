@@ -20,6 +20,8 @@
 
 #include <modbus.h>
 
+#include <libconfig.h>
+
 #if defined(_WIN32)
 #include <ws2tcpip.h>
 #else
