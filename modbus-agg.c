@@ -62,6 +62,91 @@ int main(int argc, char **argv) {
     char *port_s = NULL;
     int mb_port;
 
+    // Configuration file
+    config_t cfg;
+    config_setting_t *setting;
+    const char *c_ip_addr = NULL;
+    int c_port = 0;
+    client_config *nodesetup[10];
+
+    config_init(&cfg);
+
+    /* Read the file. If there is an error, report it and exit. */
+    if(! config_read_file(&cfg, "nodes.cfg"))
+    {
+      fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg),
+            config_error_line(&cfg), config_error_text(&cfg));
+            config_destroy(&cfg);
+      return(EXIT_FAILURE);
+    }
+
+    if (config_lookup_string(&cfg,"ip_addr",&c_ip_addr))
+    {
+      printf("Config file: listening address %s\n",c_ip_addr);
+    }
+
+    if (config_lookup_int(&cfg,"port",&c_port))
+    {
+      printf("Config file: listening port %d\n",c_port);
+    }
+
+    setting = config_lookup(&cfg, "nodes");
+
+    if(setting != NULL)
+    {
+      int count = config_setting_length(setting);
+      int i;
+
+      printf("\n%d nodes defined\n",count);
+      printf(  "----------------\n\n");
+
+      for(i = 0; i < count; ++i)
+      {
+        const char *name, *c_ipaddress, *c_port;
+        int c_offset, c_slaveid, c_poll_delay;
+        int c_coil_start, c_coil_num;
+        int c_input_start, c_input_num;
+
+        config_setting_t *node = config_setting_get_elem(setting, i);
+        config_setting_lookup_string(node, "name", &name);
+        config_setting_lookup_string(node, "ipaddress", &c_ipaddress);
+        config_setting_lookup_string(node, "port", &c_port);
+
+        config_setting_lookup_int(node, "slaveid", &c_slaveid);
+        config_setting_lookup_int(node, "offset", &c_offset);
+        config_setting_lookup_int(node, "poll_delay", &c_poll_delay);
+
+        config_setting_lookup_int(node, "coil_start", &c_coil_start);
+        config_setting_lookup_int(node, "coil_num", &c_coil_num);
+        config_setting_lookup_int(node, "input_start", &c_input_start);
+        config_setting_lookup_int(node, "input_num", &c_input_num);
+
+        printf("Node %d: %s\n",i,name);
+        printf("-------\n");
+        printf("%s:%s slave #%d offset: %d Polling every %ds\n",c_ipaddress,c_port,c_slaveid, c_offset, c_poll_delay);
+        printf("Coils: %d - %d mapped to %d - %d\n",c_coil_start,c_coil_start+c_coil_num,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset);
+        printf("Inputs: %d - %d mapped to %d - %d\n",c_input_start,c_input_start+c_input_num,c_input_start+c_offset,c_input_start+c_input_num+c_offset);
+        printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset+1);
+
+        nodesetup[i] = malloc(sizeof(client_config));
+
+        strcpy(nodesetup[i]->ipaddress, c_ipaddress);
+        strcpy(nodesetup[i]->port, c_port);
+        nodesetup[i]->offset=c_offset;
+        nodesetup[i]->slaveid=c_slaveid;
+        nodesetup[i]->poll_delay=c_poll_delay;
+        nodesetup[i]->coil_start = c_coil_start;
+        nodesetup[i]->coil_num = c_coil_num;
+        nodesetup[i]->input_start = c_input_start;
+        nodesetup[i]->input_num = c_input_num;
+      }
+    }
+    else
+    {
+      printf("No nodes defined in configuration file. Exiting...\n");
+      return -1;
+    }
+
     opterr = 0;
 
     while ((c = getopt (argc, argv, "a:p:")) != -1)
@@ -91,14 +176,24 @@ int main(int argc, char **argv) {
         printf ("Non-option argument %s\n", argv[index]);
 
     if (ip_addr == NULL) {
+      if (c_ip_addr == NULL)
+      {
         ip_addr = "0.0.0.0";
+      } else {
+        ip_addr = c_ip_addr;
+      }
     } else if(!is_valid_ip(ip_addr)) {
         printf("%s is not a valid ip address, please try with a proper ip address \n", ip_addr);
         return -1;
     }
 
     if (port_s == NULL) {
+      if (c_port == 0)
+      {
         mb_port = 1505;
+      } else {
+        mb_port = c_port;
+      }
     } else if (atoi(port_s) > 0) {
         mb_port = atoi(port_s);
     } else {
@@ -106,7 +201,7 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    printf("ip_addr : %s, port : %d \n", ip_addr, mb_port);
+    printf("Listening on %s:%d \n", ip_addr, mb_port);
 
     ctx = modbus_new_tcp(ip_addr, mb_port);
 
@@ -132,41 +227,8 @@ int main(int argc, char **argv) {
     /* Keep track of the max file descriptor */
     fdmax = server_socket;
 
-    /*
-    struct client_config
-    {
-      char ipaddress[50];
-      char port[10];
-      int coil_start;
-      int coil_num;
-      int input_start;
-      int input_num;
-      int hr_start;
-      int hr_num;
-      int ir_start;
-      int ir_num;
-      int poll_delay;
-    }*/
-
-    //pthread_create(pthread_t *restrict __newthread,
-    //const pthread_attr_t *restrict __attr,
-    //void *(*__start_routine)(void *),
-    //void *restrict __arg)
-    client_config *testsetup;
-    testsetup = malloc(sizeof(client_config));
-
-    strcpy(testsetup->ipaddress, "mb-quonset.evranch");
-    strcpy(testsetup->port,"502");
-    testsetup->offset=0;
-    testsetup->slaveid=1;
-    testsetup->poll_delay=1;
-    testsetup->coil_start = 0;
-    testsetup->coil_num = 8;
-    testsetup->input_start = 0;
-    testsetup->input_num = 8;
-
     fprintf(stderr, "Creating poll thread\n");
-    if(pthread_create(&pollthread, NULL, poll_station, testsetup)){
+    if(pthread_create(&pollthread, NULL, poll_station, nodesetup[0])){
       fprintf(stderr, "Poll thread creation failed\n");
     }
 
