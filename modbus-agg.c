@@ -70,6 +70,7 @@ int main(int argc, char **argv) {
     int c_port = 0;
     int node_count = 0;
     client_config *nodesetup[THREADPOOL];
+    int debug_level = 1;
 
     config_init(&cfg);
 
@@ -81,6 +82,8 @@ int main(int argc, char **argv) {
             config_destroy(&cfg);
       return(EXIT_FAILURE);
     }
+
+    config_lookup_int(&cfg, "debug", &debug_level);
 
     if (config_lookup_string(&cfg,"ip_addr",&c_ip_addr))
     {
@@ -99,8 +102,7 @@ int main(int argc, char **argv) {
       int count = config_setting_length(setting);
       int i;
 
-      printf("\n%d nodes defined\n",count);
-      printf(  "----------------\n\n");
+      printf("\n%d nodes defined\n\n",count);
 
       if (count > THREADPOOL)
       {
@@ -145,18 +147,21 @@ int main(int argc, char **argv) {
         config_setting_lookup_bool(node, "coil_dir_mask", &c_coil_dir_mask);
         config_setting_lookup_bool(node, "hr_dir_mask", &c_hr_dir_mask);
 
-        printf("Node %d: %s\n",i,c_name);
-        printf("-------\n");
-        printf("%s:%s slave #%d offset: %d Polling every %ds\n",c_ipaddress,c_port,c_slaveid, c_offset, c_poll_delay);
-        if (c_coil_num)
-          printf("%d Coils: %d - %d mapped to %d - %d\n",c_coil_num,c_coil_start,c_coil_start+c_coil_num-1,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset-1);
-        if (c_input_num)
-          printf("%d Inputs: %d - %d mapped to %d - %d\n",c_input_num,c_input_start,c_input_start+c_input_num-1,c_input_start+c_offset,c_input_start+c_input_num+c_offset-1);
-        if (c_hr_num)
-          printf("%d Holding regs: %d - %d mapped to %d - %d\n",c_hr_num,c_hr_start,c_hr_start+c_hr_num-1,c_hr_start+c_offset,c_hr_start+c_hr_num+c_offset-1);
-        if (c_ir_num)
-        printf("%d Input regs: %d - %d mapped to %d - %d\n",c_ir_num,c_ir_start,c_ir_start+c_ir_num-1,c_ir_start+c_offset,c_ir_start+c_ir_num+c_offset-1);
-        printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset);
+        if (debug_level)
+        {
+          printf("Node %d: %s\n",i,c_name);
+          printf("-------\n");
+          printf("%s:%s slave #%d offset: %d Polling every %ds\n",c_ipaddress,c_port,c_slaveid, c_offset, c_poll_delay);
+          if (c_coil_num)
+            printf("%d Coils: %d - %d mapped to %d - %d\n",c_coil_num,c_coil_start,c_coil_start+c_coil_num-1,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset-1);
+          if (c_input_num)
+            printf("%d Inputs: %d - %d mapped to %d - %d\n",c_input_num,c_input_start,c_input_start+c_input_num-1,c_input_start+c_offset,c_input_start+c_input_num+c_offset-1);
+          if (c_hr_num)
+            printf("%d Holding regs: %d - %d mapped to %d - %d\n",c_hr_num,c_hr_start,c_hr_start+c_hr_num-1,c_hr_start+c_offset,c_hr_start+c_hr_num+c_offset-1);
+          if (c_ir_num)
+          printf("%d Input regs: %d - %d mapped to %d - %d\n",c_ir_num,c_ir_start,c_ir_start+c_ir_num-1,c_ir_start+c_offset,c_ir_start+c_ir_num+c_offset-1);
+          printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset);
+        }
 
         nodesetup[i] = malloc(sizeof(client_config));
 
@@ -277,9 +282,11 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < node_count; i++) {
 
-      fprintf(stderr, "Creating poll thread %d\n", i);
+      if (debug_level > 1)
+        fprintf(stderr, "Creating poll thread %d\n", i);
+
       if(pthread_create(&pollthread[i], NULL, poll_station, nodesetup[i])){
-        fprintf(stderr, "Poll thread creation failed\n");
+        fprintf(stderr, "Poll thread %d creation failed\n", i);
       }
     }
 
@@ -319,7 +326,9 @@ int main(int argc, char **argv) {
                         /* Keep track of the maximum */
                         fdmax = newfd;
                     }
-                    printf("New connection from %s:%d on socket %d\n",
+
+                    if (debug_level > 2)
+                      printf("New connection from %s:%d on socket %d\n",
                            inet_ntoa(clientaddr.sin_addr), clientaddr.sin_port, newfd);
                 }
             } else {
@@ -330,8 +339,11 @@ int main(int argc, char **argv) {
                 } else if (rc == -1) {
                     /* This example server in ended on connection closing or
                      * any errors. */
-                    printf("Connection closed on socket %d\n", master_socket);
-                    printf("Error %s\n",modbus_strerror(errno));
+                     if (debug_level > 2)
+                     {
+                       printf("Connection closed on socket %d\n", master_socket);
+                       printf("Error %s\n",modbus_strerror(errno));
+                     }
                     close(master_socket);
 
                     /* Remove from reference set */

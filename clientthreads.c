@@ -27,7 +27,7 @@ void *poll_station(void *client_struct)
   uint8_t tab_bits[50], tab_bits_slave[50]={0}, tab_bits_master[50]={0};
   uint8_t tab_input_bits[50];
   uint16_t tab_input_registers[50];
-  uint16_t tab_registers[50];
+  uint16_t tab_registers[50], tab_registers_slave[50]={0}, tab_registers_master[50]={0};
   bool connection_live = false;
 
   client_config thisclient = *((client_config*)client_struct);
@@ -60,7 +60,7 @@ void *poll_station(void *client_struct)
 
     sleep(thisclient.poll_delay);
 
-    if (thisclient.debug)
+    if (thisclient.debug > 2)
       printf("Poll %s\n",thisclient.name);
 
     if ((thisclient.coil_push_only)&&(thisclient.coil_num > 0))
@@ -77,7 +77,7 @@ void *poll_station(void *client_struct)
       }
 
       // Debug tables
-      if (thisclient.debug > 1)
+      if (thisclient.debug > 2)
       {
         for (size_t i = 0; i < thisclient.coil_num; i++)
         {
@@ -108,13 +108,18 @@ void *poll_station(void *client_struct)
       // Prioritize change pushed from master
       if (master_changed)
       {
+        if (thisclient.debug > 1)
+          printf("%s coils ->\n", thisclient.name);
         // Write coils from main mobdus table
         modbus_write_bits(mb_poll, thisclient.coil_start, thisclient.coil_num,&mb_mapping->tab_bits[thisclient.offset]);
       } else if (slave_changed)
       {
+        if (thisclient.debug > 1)
+          printf("%s coils <-\n", thisclient.name);
         // Copy read coils into main modbus table
         for (size_t i = 0; i < thisclient.coil_num; i++)
         {
+          tab_bits_master[i] = tab_bits[i];
           mb_mapping->tab_bits[thisclient.offset+i]=tab_bits[i];
         }
       }
@@ -131,7 +136,7 @@ void *poll_station(void *client_struct)
       }
 
       // Debug input bits
-      if (thisclient.debug > 1)
+      if (thisclient.debug > 2)
       {
         for (size_t i = 0; i < thisclient.coil_num; i++)
         {
@@ -175,10 +180,43 @@ void *poll_station(void *client_struct)
         continue;
       }
 
-      // Copy read holding registers into main modbus table
+      // Check for change on slave side and update last state
+      bool slave_changed = false;
       for (size_t i = 0; i < thisclient.hr_num; i++)
       {
-        mb_mapping->tab_registers[thisclient.offset+i]=tab_registers[i];
+        if (tab_registers[i] != tab_registers_slave[i])
+          slave_changed = true;
+
+        tab_registers_slave[i] = tab_registers[i];
+      }
+
+      // Check for change on master side and update last state
+      bool master_changed = false;
+      for (size_t i = 0; i < thisclient.hr_num; i++)
+      {
+        if (mb_mapping->tab_registers[thisclient.offset+i] != tab_registers_master[i])
+          master_changed = true;
+
+        tab_registers_master[i] = mb_mapping->tab_registers[thisclient.offset+i];
+      }
+
+      // Prioritize change pushed from master
+      if (master_changed)
+      {
+        if (thisclient.debug > 1)
+          printf("%s registers ->\n", thisclient.name);
+        // Write registers from main mobdus table
+        modbus_write_registers(mb_poll, thisclient.hr_start, thisclient.hr_num,&mb_mapping->tab_registers[thisclient.offset]);
+      } else if (slave_changed)
+      {
+        if (thisclient.debug > 1)
+          printf("%s registers <-\n", thisclient.name);
+        // Copy read registers into main modbus table
+        for (size_t i = 0; i < thisclient.hr_num; i++)
+        {
+          tab_registers_master[i] = tab_registers[i];
+          mb_mapping->tab_registers[thisclient.offset+i]=tab_registers[i];
+        }
       }
 
     }
