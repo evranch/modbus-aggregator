@@ -1,5 +1,6 @@
 #include <modbus.h>
 #include <pthread.h>
+#include <stdbool.h>
 
 extern modbus_mapping_t *mb_mapping;
 
@@ -18,6 +19,10 @@ typedef struct client_config
   int ir_num;
   int offset;
   int poll_delay;
+  bool coil_push_only;
+  bool coil_dir_mask;
+  bool hr_push_only;
+  bool hr_dir_mask;
 } client_config;
 
 void *poll_station(void *client_struct);

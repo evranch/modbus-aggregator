@@ -111,9 +111,13 @@ int main(int argc, char **argv) {
       for(i = 0; i < count; ++i)
       {
         const char *name, *c_ipaddress, *c_port;
-        int c_offset, c_slaveid, c_poll_delay;
-        int c_coil_start, c_coil_num;
-        int c_input_start, c_input_num;
+        int c_offset = 0, c_slaveid = 0, c_poll_delay = 0;
+        int c_coil_start = 0, c_coil_num = 0;
+        int c_input_start = 0, c_input_num = 0;
+        int c_ir_start = 0, c_ir_num = 0;
+        int c_hr_start = 0, c_hr_num = 0;
+        int c_coil_push_only = 0, c_hr_push_only = 0;
+        int c_coil_dir_mask = 0, c_hr_dir_mask = 0;
 
         config_setting_t *node = config_setting_get_elem(setting, i);
         config_setting_lookup_string(node, "name", &name);
@@ -128,12 +132,24 @@ int main(int argc, char **argv) {
         config_setting_lookup_int(node, "coil_num", &c_coil_num);
         config_setting_lookup_int(node, "input_start", &c_input_start);
         config_setting_lookup_int(node, "input_num", &c_input_num);
+        config_setting_lookup_int(node, "hr_start", &c_hr_start);
+        config_setting_lookup_int(node, "hr_num", &c_hr_num);
+        config_setting_lookup_int(node, "ir_start", &c_ir_start);
+        config_setting_lookup_int(node, "ir_num", &c_ir_num);
+
+        config_setting_lookup_bool(node, "coil_push_only", &c_coil_push_only);
+        config_setting_lookup_bool(node, "hr_push_only", &c_hr_push_only);
+
+        config_setting_lookup_bool(node, "coil_dir_mask", &c_coil_dir_mask);
+        config_setting_lookup_bool(node, "hr_dir_mask", &c_hr_dir_mask);
 
         printf("Node %d: %s\n",i,name);
         printf("-------\n");
         printf("%s:%s slave #%d offset: %d Polling every %ds\n",c_ipaddress,c_port,c_slaveid, c_offset, c_poll_delay);
         printf("Coils: %d - %d mapped to %d - %d\n",c_coil_start,c_coil_start+c_coil_num,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset);
         printf("Inputs: %d - %d mapped to %d - %d\n",c_input_start,c_input_start+c_input_num,c_input_start+c_offset,c_input_start+c_input_num+c_offset);
+        printf("Holding reg: %d - %d mapped to %d - %d\n",c_hr_start,c_hr_start+c_hr_num,c_hr_start+c_offset,c_hr_start+c_hr_num+c_offset);
+        printf("Input reg: %d - %d mapped to %d - %d\n",c_ir_start,c_ir_start+c_ir_num,c_ir_start+c_offset,c_ir_start+c_ir_num+c_offset);
         printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset+1);
 
         nodesetup[i] = malloc(sizeof(client_config));
@@ -143,10 +159,22 @@ int main(int argc, char **argv) {
         nodesetup[i]->offset=c_offset;
         nodesetup[i]->slaveid=c_slaveid;
         nodesetup[i]->poll_delay=c_poll_delay;
+
         nodesetup[i]->coil_start = c_coil_start;
         nodesetup[i]->coil_num = c_coil_num;
         nodesetup[i]->input_start = c_input_start;
         nodesetup[i]->input_num = c_input_num;
+        nodesetup[i]->hr_start = c_hr_start;
+        nodesetup[i]->hr_num = c_hr_num;
+        nodesetup[i]->ir_start = c_ir_start;
+        nodesetup[i]->ir_num = c_ir_num;
+
+
+        nodesetup[i]->coil_push_only = c_coil_push_only;
+        nodesetup[i]->hr_push_only = c_hr_push_only;
+
+        nodesetup[i]->coil_dir_mask = c_coil_dir_mask;
+        nodesetup[i]->hr_dir_mask = c_hr_dir_mask;
       }
 
       node_count = count;
