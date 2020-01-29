@@ -148,11 +148,15 @@ int main(int argc, char **argv) {
         printf("Node %d: %s\n",i,c_name);
         printf("-------\n");
         printf("%s:%s slave #%d offset: %d Polling every %ds\n",c_ipaddress,c_port,c_slaveid, c_offset, c_poll_delay);
-        printf("Coils: %d - %d mapped to %d - %d\n",c_coil_start,c_coil_start+c_coil_num,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset);
-        printf("Inputs: %d - %d mapped to %d - %d\n",c_input_start,c_input_start+c_input_num,c_input_start+c_offset,c_input_start+c_input_num+c_offset);
-        printf("Holding reg: %d - %d mapped to %d - %d\n",c_hr_start,c_hr_start+c_hr_num,c_hr_start+c_offset,c_hr_start+c_hr_num+c_offset);
-        printf("Input reg: %d - %d mapped to %d - %d\n",c_ir_start,c_ir_start+c_ir_num,c_ir_start+c_offset,c_ir_start+c_ir_num+c_offset);
-        printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset+1);
+        if (c_coil_num)
+          printf("%d Coils: %d - %d mapped to %d - %d\n",c_coil_num,c_coil_start,c_coil_start+c_coil_num-1,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset-1);
+        if (c_input_num)
+          printf("%d Inputs: %d - %d mapped to %d - %d\n",c_input_num,c_input_start,c_input_start+c_input_num-1,c_input_start+c_offset,c_input_start+c_input_num+c_offset-1);
+        if (c_hr_num)
+          printf("%d Holding regs: %d - %d mapped to %d - %d\n",c_hr_num,c_hr_start,c_hr_start+c_hr_num-1,c_hr_start+c_offset,c_hr_start+c_hr_num+c_offset-1);
+        if (c_ir_num)
+        printf("%d Input regs: %d - %d mapped to %d - %d\n",c_ir_num,c_ir_start,c_ir_start+c_ir_num-1,c_ir_start+c_offset,c_ir_start+c_ir_num+c_offset-1);
+        printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset);
 
         nodesetup[i] = malloc(sizeof(client_config));
 
