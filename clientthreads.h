@@ -23,6 +23,7 @@ typedef struct client_config
   int debug;
   bool coil_push_only;
   bool coil_dir_mask;
+  bool mirror_coils;
   bool hr_push_only;
   bool hr_dir_mask;
 } client_config;

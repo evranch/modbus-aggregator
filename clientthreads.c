@@ -50,7 +50,7 @@ void *poll_station(void *client_struct)
       modbus_close(mb_poll);
       while(modbus_connect(mb_poll) != 0)
       {
-          mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num] = connection_live;
+          mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num + (thisclient.coil_num * thisclient.mirror_coils)] = connection_live;
           perror("Connection broken, reconnecting");
           sleep(thisclient.poll_delay);
       }
@@ -84,6 +84,9 @@ void *poll_station(void *client_struct)
       {
         if (tab_bits[i] != tab_bits_slave[i])
           slave_changed = slave_changes[i] = true;
+          
+        if (thisclient.mirror_coils)
+          mb_mapping->tab_input_bits[thisclient.offset+thisclient.input_num+i]=tab_bits[i];
 
         tab_bits_slave[i] = tab_bits[i];
       }
@@ -261,7 +264,7 @@ void *poll_station(void *client_struct)
     }
 
     // Set connection good flag if we made it through all requests
-    mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num] = connection_live;
+    mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num + (thisclient.coil_num * thisclient.mirror_coils)] = connection_live;
   }
 
   modbus_close(mb_poll);

@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
         int c_hr_start = 0, c_hr_num = 0;
         int c_coil_push_only = 0, c_hr_push_only = 0;
         int c_coil_dir_mask = 0, c_hr_dir_mask = 0;
-        int c_debug = 0;
+        int c_debug = 0, c_mirror_coils = 0;
 
         config_setting_t *node = config_setting_get_elem(setting, i);
         config_setting_lookup_string(node, "name", &c_name);
@@ -147,6 +147,8 @@ int main(int argc, char **argv) {
         config_setting_lookup_bool(node, "coil_dir_mask", &c_coil_dir_mask);
         config_setting_lookup_bool(node, "hr_dir_mask", &c_hr_dir_mask);
 
+        config_setting_lookup_bool(node, "mirror_coils", &c_mirror_coils);
+
         if (debug_level)
         {
           printf("Node %d: %s\n",i,c_name);
@@ -156,11 +158,13 @@ int main(int argc, char **argv) {
             printf("%d Coils: %d - %d mapped to %d - %d\n",c_coil_num,c_coil_start,c_coil_start+c_coil_num-1,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset-1);
           if (c_input_num)
             printf("%d Inputs: %d - %d mapped to %d - %d\n",c_input_num,c_input_start,c_input_start+c_input_num-1,c_input_start+c_offset,c_input_start+c_input_num+c_offset-1);
+          if (c_mirror_coils)
+            printf("%d Mirrored Coils: %d - %d mapped to inputs %d - %d\n",c_coil_num,c_coil_start,c_coil_start+c_coil_num-1,c_coil_start+c_offset+c_input_num,c_coil_start+c_coil_num+c_offset+c_input_num-1);
           if (c_hr_num)
             printf("%d Holding regs: %d - %d mapped to %d - %d\n",c_hr_num,c_hr_start,c_hr_start+c_hr_num-1,c_hr_start+c_offset,c_hr_start+c_hr_num+c_offset-1);
           if (c_ir_num)
           printf("%d Input regs: %d - %d mapped to %d - %d\n",c_ir_num,c_ir_start,c_ir_start+c_ir_num-1,c_ir_start+c_offset,c_ir_start+c_ir_num+c_offset-1);
-          printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset);
+          printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset+(c_coil_num*c_mirror_coils));
         }
 
         nodesetup[i] = malloc(sizeof(client_config));
@@ -189,6 +193,7 @@ int main(int argc, char **argv) {
         nodesetup[i]->hr_dir_mask = c_hr_dir_mask;
 
         nodesetup[i]->debug = c_debug;
+        nodesetup[i]->mirror_coils = c_mirror_coils;
 
       }
 
