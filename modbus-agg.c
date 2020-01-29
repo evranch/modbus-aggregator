@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
 
     /* Getting the options through getopt */
     int c;
-    char *ip_addr = NULL;
+    const char *ip_addr = NULL;
     char *port_s = NULL;
     int mb_port;
 
@@ -355,7 +355,7 @@ static void close_sigint(int dummy)
     exit(dummy);
 }
 
-int is_valid_ip(char *ip_address) {
+int is_valid_ip(const char *ip_address) {
     struct sockaddr_in sa;
     int result = inet_pton(AF_INET, ip_address, &(sa.sin_addr));
     return result != 0;
