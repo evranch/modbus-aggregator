@@ -60,7 +60,7 @@ void *poll_station(void *client_struct)
 
     sleep(thisclient.poll_delay);
 
-    if (thisclient.debug > 2)
+    if (thisclient.debug > 3)
       printf("Poll %s\n",thisclient.name);
 
     if ((thisclient.coil_push_only)&&(thisclient.coil_num > 0))
@@ -76,33 +76,37 @@ void *poll_station(void *client_struct)
         continue;
       }
 
-      // Debug tables
-      if (thisclient.debug > 2)
-      {
-        for (size_t i = 0; i < thisclient.coil_num; i++)
-        {
-          printf("Master:%d Last:%d Slave:%d Last:%d\n",mb_mapping->tab_bits[thisclient.offset+i],tab_bits_master[i],tab_bits[i],tab_bits_slave[i]);
-        }
-      }
-
       // Check for change on slave side and update last state
       bool slave_changed = false;
+      bool slave_changes[50] = {0};
+
       for (size_t i = 0; i < thisclient.coil_num; i++)
       {
         if (tab_bits[i] != tab_bits_slave[i])
-          slave_changed = true;
+          slave_changed = slave_changes[i] = true;
 
         tab_bits_slave[i] = tab_bits[i];
       }
 
       // Check for change on master side and update last state
       bool master_changed = false;
+      bool master_changes[50] = {0};
+
       for (size_t i = 0; i < thisclient.coil_num; i++)
       {
         if (mb_mapping->tab_bits[thisclient.offset+i] != tab_bits_master[i])
-          master_changed = true;
+          master_changed = master_changes[i] = true;
 
         tab_bits_master[i] = mb_mapping->tab_bits[thisclient.offset+i];
+      }
+
+      // Debug tables
+      if ((thisclient.debug > 2)&&((master_changed)||(slave_changed)))
+      {
+        for (size_t i = 0; i < thisclient.coil_num; i++)
+        {
+          printf("1: Master:%d Last:%d Slave:%d Last:%d\n",mb_mapping->tab_bits[thisclient.offset+i],tab_bits_master[i],tab_bits[i],tab_bits_slave[i]);
+        }
       }
 
       // Prioritize change pushed from master
@@ -110,20 +114,41 @@ void *poll_station(void *client_struct)
       {
         if (thisclient.debug > 1)
           printf("%s coils ->\n", thisclient.name);
+
+          for (size_t i = 0; i < thisclient.coil_num; i++)
+          {
+            if (master_changes[i])
+            {
+              tab_bits_slave[i] = mb_mapping->tab_bits[thisclient.offset+i];
+              modbus_write_bit(mb_poll, thisclient.coil_start + i,mb_mapping->tab_bits[thisclient.offset+i]);
+            }
+          }
+
         // Write coils from main mobdus table
-        modbus_write_bits(mb_poll, thisclient.coil_start, thisclient.coil_num,&mb_mapping->tab_bits[thisclient.offset]);
+        //modbus_write_bits(mb_poll, thisclient.coil_start, thisclient.coil_num,&mb_mapping->tab_bits[thisclient.offset]);
       } else if (slave_changed)
       {
         if (thisclient.debug > 1)
           printf("%s coils <-\n", thisclient.name);
-        // Copy read coils into main modbus table
+        // Copy changed coils only into main modbus table
         for (size_t i = 0; i < thisclient.coil_num; i++)
         {
-          tab_bits_master[i] = tab_bits[i];
-          mb_mapping->tab_bits[thisclient.offset+i]=tab_bits[i];
+          if (slave_changes[i])
+          {
+            tab_bits_master[i] = tab_bits[i];
+            mb_mapping->tab_bits[thisclient.offset+i]=tab_bits[i];
+          }
         }
       }
 
+      if ((thisclient.debug > 2)&&((master_changed)||(slave_changed)))
+      {
+        for (size_t i = 0; i < thisclient.coil_num; i++)
+        {
+          printf("2: Master:%d Last:%d Slave:%d Last:%d\n",mb_mapping->tab_bits[thisclient.offset+i],tab_bits_master[i],tab_bits[i],tab_bits_slave[i]);
+        }
+        printf("\n");
+      }
   }
 
     // Read input bits
@@ -182,20 +207,22 @@ void *poll_station(void *client_struct)
 
       // Check for change on slave side and update last state
       bool slave_changed = false;
+      bool slave_changes[50] = {0};
       for (size_t i = 0; i < thisclient.hr_num; i++)
       {
         if (tab_registers[i] != tab_registers_slave[i])
-          slave_changed = true;
+          slave_changed = slave_changes[i] = true;
 
         tab_registers_slave[i] = tab_registers[i];
       }
 
       // Check for change on master side and update last state
       bool master_changed = false;
+      bool master_changes[50] = {0};
       for (size_t i = 0; i < thisclient.hr_num; i++)
       {
         if (mb_mapping->tab_registers[thisclient.offset+i] != tab_registers_master[i])
-          master_changed = true;
+          master_changed = master_changes[i] = true;
 
         tab_registers_master[i] = mb_mapping->tab_registers[thisclient.offset+i];
       }
@@ -205,8 +232,17 @@ void *poll_station(void *client_struct)
       {
         if (thisclient.debug > 1)
           printf("%s registers ->\n", thisclient.name);
+
+          for (size_t i = 0; i < thisclient.hr_num; i++)
+          {
+            if (master_changes[i])
+            {
+              tab_registers_slave[i] = mb_mapping->tab_registers[thisclient.offset+i];
+              modbus_write_register(mb_poll, thisclient.hr_start+i,mb_mapping->tab_registers[thisclient.offset+i]);
+            }
+          }
         // Write registers from main mobdus table
-        modbus_write_registers(mb_poll, thisclient.hr_start, thisclient.hr_num,&mb_mapping->tab_registers[thisclient.offset]);
+        //modbus_write_registers(mb_poll, thisclient.hr_start, thisclient.hr_num,&mb_mapping->tab_registers[thisclient.offset]);
       } else if (slave_changed)
       {
         if (thisclient.debug > 1)
@@ -214,8 +250,11 @@ void *poll_station(void *client_struct)
         // Copy read registers into main modbus table
         for (size_t i = 0; i < thisclient.hr_num; i++)
         {
-          tab_registers_master[i] = tab_registers[i];
-          mb_mapping->tab_registers[thisclient.offset+i]=tab_registers[i];
+          if (slave_changes[i])
+          {
+            tab_registers_master[i] = tab_registers[i];
+            mb_mapping->tab_registers[thisclient.offset+i]=tab_registers[i];
+          }
         }
       }
 
