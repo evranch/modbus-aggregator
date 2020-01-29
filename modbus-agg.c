@@ -33,6 +33,7 @@
 #endif
 
 #define NB_CONNECTION    INT_MAX
+#define THREADPOOL  100
 
 #include "clientthreads.h"
 #include "modbus-agg.h"
@@ -45,7 +46,7 @@ modbus_mapping_t *mb_mapping;
 
 int main(int argc, char **argv) {
 
-    pthread_t pollthread;
+    pthread_t pollthread[THREADPOOL];
 
     // Modbus vars
     uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
@@ -67,7 +68,8 @@ int main(int argc, char **argv) {
     config_setting_t *setting;
     const char *c_ip_addr = NULL;
     int c_port = 0;
-    client_config *nodesetup[10];
+    int node_count = 0;
+    client_config *nodesetup[THREADPOOL];
 
     config_init(&cfg);
 
@@ -99,6 +101,12 @@ int main(int argc, char **argv) {
 
       printf("\n%d nodes defined\n",count);
       printf(  "----------------\n\n");
+
+      if (count > THREADPOOL)
+      {
+        printf("Too many nodes in file! Max %d", THREADPOOL);
+        return -1;
+      }
 
       for(i = 0; i < count; ++i)
       {
@@ -140,6 +148,8 @@ int main(int argc, char **argv) {
         nodesetup[i]->input_start = c_input_start;
         nodesetup[i]->input_num = c_input_num;
       }
+
+      node_count = count;
     }
     else
     {
@@ -227,9 +237,12 @@ int main(int argc, char **argv) {
     /* Keep track of the max file descriptor */
     fdmax = server_socket;
 
-    fprintf(stderr, "Creating poll thread\n");
-    if(pthread_create(&pollthread, NULL, poll_station, nodesetup[0])){
-      fprintf(stderr, "Poll thread creation failed\n");
+    for (int i = 0; i < node_count; i++) {
+
+      fprintf(stderr, "Creating poll thread %d\n", i);
+      if(pthread_create(&pollthread[i], NULL, poll_station, nodesetup[i])){
+        fprintf(stderr, "Poll thread creation failed\n");
+      }
     }
 
 // MAIN SERVER LOOP
