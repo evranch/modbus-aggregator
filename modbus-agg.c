@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
 
       for(i = 0; i < count; ++i)
       {
-        const char *name, *c_ipaddress, *c_port;
+        const char *c_name, *c_ipaddress, *c_port;
         int c_offset = 0, c_slaveid = 0, c_poll_delay = 0;
         int c_coil_start = 0, c_coil_num = 0;
         int c_input_start = 0, c_input_num = 0;
@@ -118,15 +118,17 @@ int main(int argc, char **argv) {
         int c_hr_start = 0, c_hr_num = 0;
         int c_coil_push_only = 0, c_hr_push_only = 0;
         int c_coil_dir_mask = 0, c_hr_dir_mask = 0;
+        int c_debug = 0;
 
         config_setting_t *node = config_setting_get_elem(setting, i);
-        config_setting_lookup_string(node, "name", &name);
+        config_setting_lookup_string(node, "name", &c_name);
         config_setting_lookup_string(node, "ipaddress", &c_ipaddress);
         config_setting_lookup_string(node, "port", &c_port);
 
         config_setting_lookup_int(node, "slaveid", &c_slaveid);
         config_setting_lookup_int(node, "offset", &c_offset);
         config_setting_lookup_int(node, "poll_delay", &c_poll_delay);
+        config_setting_lookup_int(node, "debug", &c_debug);
 
         config_setting_lookup_int(node, "coil_start", &c_coil_start);
         config_setting_lookup_int(node, "coil_num", &c_coil_num);
@@ -143,7 +145,7 @@ int main(int argc, char **argv) {
         config_setting_lookup_bool(node, "coil_dir_mask", &c_coil_dir_mask);
         config_setting_lookup_bool(node, "hr_dir_mask", &c_hr_dir_mask);
 
-        printf("Node %d: %s\n",i,name);
+        printf("Node %d: %s\n",i,c_name);
         printf("-------\n");
         printf("%s:%s slave #%d offset: %d Polling every %ds\n",c_ipaddress,c_port,c_slaveid, c_offset, c_poll_delay);
         printf("Coils: %d - %d mapped to %d - %d\n",c_coil_start,c_coil_start+c_coil_num,c_coil_start+c_offset,c_coil_start+c_coil_num+c_offset);
@@ -154,8 +156,9 @@ int main(int argc, char **argv) {
 
         nodesetup[i] = malloc(sizeof(client_config));
 
-        strcpy(nodesetup[i]->ipaddress, c_ipaddress);
-        strcpy(nodesetup[i]->port, c_port);
+        strncpy(nodesetup[i]->name, c_name, sizeof(((client_config){0}).name));
+        strncpy(nodesetup[i]->ipaddress, c_ipaddress, sizeof(((client_config){0}).ipaddress));
+        strncpy(nodesetup[i]->port, c_port, sizeof(((client_config){0}).port));
         nodesetup[i]->offset=c_offset;
         nodesetup[i]->slaveid=c_slaveid;
         nodesetup[i]->poll_delay=c_poll_delay;
@@ -175,6 +178,9 @@ int main(int argc, char **argv) {
 
         nodesetup[i]->coil_dir_mask = c_coil_dir_mask;
         nodesetup[i]->hr_dir_mask = c_hr_dir_mask;
+
+        nodesetup[i]->debug = c_debug;
+
       }
 
       node_count = count;

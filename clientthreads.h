@@ -6,6 +6,7 @@ extern modbus_mapping_t *mb_mapping;
 
 typedef struct client_config
 {
+  char name[50];
   char ipaddress[50];
   char port[10];
   int slaveid;
@@ -19,6 +20,7 @@ typedef struct client_config
   int ir_num;
   int offset;
   int poll_delay;
+  int debug;
   bool coil_push_only;
   bool coil_dir_mask;
   bool hr_push_only;
