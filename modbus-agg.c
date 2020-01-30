@@ -1,5 +1,6 @@
 /*
- * Copyright © 2008-2014 Stéphane Raimbault <stephane.raimbault@gmail.com>
+ * Modbus Aggregator
+ * Copyright © 2020 Alex Evans
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the BSD License.
@@ -38,32 +39,32 @@
 #include "clientthreads.h"
 #include "modbus-agg.h"
 
+
+// Modbus globals
 modbus_t *ctx = NULL;
 int server_socket = -1;
 modbus_mapping_t *mb_mapping;
 
-
-
 int main(int argc, char **argv) {
 
+    // Thread pool
     pthread_t pollthread[THREADPOOL];
 
-    // Modbus vars
+    // Modbus server vars
     uint8_t query[MODBUS_TCP_MAX_ADU_LENGTH];
     int master_socket;
     int rc;
     fd_set refset;
     fd_set rdset;
-    /* Maximum file descriptor number */
     int fdmax;
 
-    /* Getting the options through getopt */
+    // Getopt vars
     int c;
     const char *ip_addr = NULL;
     char *port_s = NULL;
     int mb_port;
 
-    // Configuration file
+    // Libconfig vars
     config_t cfg;
     config_setting_t *setting;
     const char *c_ip_addr = NULL;
@@ -71,10 +72,12 @@ int main(int argc, char **argv) {
     int node_count = 0;
     client_config *nodesetup[THREADPOOL];
     int debug_level = 1;
+    int largest_coil = 0, largest_input = 0, largest_hr = 0, largest_ir = 0;
 
+    // Libconfig section
     config_init(&cfg);
 
-    /* Read the file. If there is an error, report it and exit. */
+    // Read config file in local directory
     if(! config_read_file(&cfg, "nodes.cfg"))
     {
       fprintf(stderr, "%s:%d - %s\n", config_error_file(&cfg),
@@ -83,6 +86,7 @@ int main(int argc, char **argv) {
       return(EXIT_FAILURE);
     }
 
+    // Look for global config variables
     config_lookup_int(&cfg, "debug", &debug_level);
 
     if (config_lookup_string(&cfg,"ip_addr",&c_ip_addr))
@@ -95,6 +99,7 @@ int main(int argc, char **argv) {
       printf("Config file: listening port %d\n",c_port);
     }
 
+    // Parse node list
     setting = config_lookup(&cfg, "nodes");
 
     if(setting != NULL)
@@ -110,6 +115,11 @@ int main(int argc, char **argv) {
         return -1;
       }
 
+      // Create array of node configurations
+      // I'm sure this can be reworked to get rid of local variables
+      // and strncpys but this works well enough for now.
+      // If variables aren't initialized to zero then they can contain random
+      // data on the Raspberry Pi!
       for(i = 0; i < count; ++i)
       {
         const char *c_name, *c_ipaddress, *c_port;
@@ -167,6 +177,12 @@ int main(int argc, char **argv) {
           printf("Connection live bit at input %d\n\n",c_input_start+c_input_num+c_offset+(c_coil_num*c_mirror_coils));
         }
 
+        // Track largest address for main mapping context allocation
+        largest_coil = max(largest_coil, c_coil_start+c_coil_num+c_offset);
+        largest_input = max(largest_input, c_input_start+c_input_num+c_offset+(c_coil_num*c_mirror_coils)+1);
+        largest_hr = max(largest_hr,c_hr_start+c_hr_num+c_offset);
+        largest_ir = max(largest_ir,c_ir_start+c_ir_num+c_offset);
+
         nodesetup[i] = malloc(sizeof(client_config));
 
         strncpy(nodesetup[i]->name, c_name, sizeof(((client_config){0}).name));
@@ -205,6 +221,7 @@ int main(int argc, char **argv) {
       return -1;
     }
 
+    // Getopt section - override listening address and port
     opterr = 0;
 
     while ((c = getopt (argc, argv, "a:p:")) != -1)
@@ -233,6 +250,7 @@ int main(int argc, char **argv) {
     for (int index = optind; index < argc; index++)
         printf ("Non-option argument %s\n", argv[index]);
 
+    // Default to listening on all interfaces
     if (ip_addr == NULL) {
       if (c_ip_addr == NULL)
       {
@@ -245,10 +263,11 @@ int main(int argc, char **argv) {
         return -1;
     }
 
+    // Default to port 1502 (assuming non-superuser)
     if (port_s == NULL) {
       if (c_port == 0)
       {
-        mb_port = 1505;
+        mb_port = 1502;
       } else {
         mb_port = c_port;
       }
@@ -263,9 +282,14 @@ int main(int argc, char **argv) {
 
     ctx = modbus_new_tcp(ip_addr, mb_port);
 
-    /* For reading registers and bits, the addesses go from 0 to 0xFFFF */
-    mb_mapping = modbus_mapping_new(0xFF, 0xFF,
-                                    0xFF, 0xFF);
+    // Allocate main modbus map
+    if (debug_level > 1)
+      printf("Allocating main modbus map. %d coils, %d inputs, "\
+       "%d registers, %d input registers\n", largest_coil, largest_input,\
+        largest_hr, largest_ir);
+
+    mb_mapping = modbus_mapping_new(largest_coil, largest_input, largest_hr, largest_ir);
+
     if (mb_mapping == NULL) {
         fprintf(stderr, "Failed to allocate the mapping: %s\n",
                 modbus_strerror(errno));
@@ -285,6 +309,7 @@ int main(int argc, char **argv) {
     /* Keep track of the max file descriptor */
     fdmax = server_socket;
 
+    // Start up polling threads and pass node setups
     for (int i = 0; i < node_count; i++) {
 
       if (debug_level > 1)
@@ -380,4 +405,9 @@ int is_valid_ip(const char *ip_address) {
     struct sockaddr_in sa;
     int result = inet_pton(AF_INET, ip_address, &(sa.sin_addr));
     return result != 0;
+}
+
+int max(int x, int y)
+{
+  return (((x) > (y)) ? (x) : (y));
 }
