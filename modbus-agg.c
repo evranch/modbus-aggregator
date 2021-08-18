@@ -131,6 +131,7 @@ int main(int argc, char **argv) {
         int c_coil_push_only = 0, c_hr_push_only = 0;
         int c_coil_dir_mask = 0, c_hr_dir_mask = 0;
         int c_debug = 0, c_mirror_coils = 0;
+		int c_persistent = 0;
 
         config_setting_t *node = config_setting_get_elem(setting, i);
         config_setting_lookup_string(node, "name", &c_name);
@@ -158,6 +159,8 @@ int main(int argc, char **argv) {
         config_setting_lookup_bool(node, "hr_dir_mask", &c_hr_dir_mask);
 
         config_setting_lookup_bool(node, "mirror_coils", &c_mirror_coils);
+
+		config_setting_lookup_bool(node, "persistent", &c_persistent)
 
         if (debug_level)
         {
@@ -211,6 +214,7 @@ int main(int argc, char **argv) {
         nodesetup[i]->debug = c_debug;
         nodesetup[i]->mirror_coils = c_mirror_coils;
 
+        nodesetup[i]->persistent = c_persistent;
       }
 
       node_count = count;

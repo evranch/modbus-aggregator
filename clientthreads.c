@@ -40,6 +40,12 @@ void *poll_station(void *client_struct)
   while(1)
   {
 
+	// Break connection if persistence is not set
+	if (!thisclient.persistent)
+	{
+		modbus_close(mb_poll);
+	}
+
     // If connection is broken, close it and block until reopened
     if (!connection_live)
     {
