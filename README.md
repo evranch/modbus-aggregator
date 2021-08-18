@@ -10,6 +10,7 @@ In particular, the main features of modbus-aggregator are as follows:
 - slave failure detection via discrete input
 - propagates changes, allowing remote operation of devices with PLCs that update coils every cycle
 - option to mirror coils into the discrete input address space, for PLCs that don't implement (01) Read Coil Status
+- allows use of either persistent or new TCP connections for each poll
 - written in C with minimal dependencies
 
 Modbus-aggregator loads its configuration from the file **nodes.cfg** in the current directory.
@@ -25,6 +26,7 @@ Configure up to 100 devices with their own section under "nodes". Note that this
 - if a data type is not defined in the config, it will not be polled
 - mirror_coils, if true, will read the coils from the slave and place them into the discrete input address space directly after the discrete inputs
 - coil_push_only and hr_push_only, if true, will disable change detection for this device and push the state of the coils and holding registers respectively from the PLC to the slave every polling cycle.
+- persistent, if true, will attempt to reuse the same TCP connection for continuous polling. It will attempt to re-establish the connection if broken. Default: false.
 
 All poll threads share access to the same main modbus mapping. There are no mutexes or semaphores in use, as access should not overlap. It is up to the user to avoid collisions within the address space. In the event that address spaces overlap, the application *probably* won't crash, but it will likely return garbage data.
 
