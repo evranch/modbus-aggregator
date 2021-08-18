@@ -44,6 +44,9 @@ void *poll_station(void *client_struct)
 	if (!thisclient.persistent)
 	{
 		modbus_close(mb_poll);
+		connection_live = false;
+		if (thisclient.debug > 3)
+			printf("%s: Creating new connection\n",thisclient.name);
 	}
 
     // If connection is broken, close it and block until reopened
@@ -53,7 +56,9 @@ void *poll_station(void *client_struct)
       while(modbus_connect(mb_poll) != 0)
       {
           mb_mapping->tab_input_bits[thisclient.offset + thisclient.input_num + (thisclient.coil_num * thisclient.mirror_coils)] = connection_live;
-          perror("Connection broken, reconnecting");
+		  if (!thisclient.persistent)
+		  	perror("Connection broken, reconnecting");
+
           sleep(thisclient.poll_delay);
       }
     }

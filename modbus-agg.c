@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
 
         config_setting_lookup_bool(node, "mirror_coils", &c_mirror_coils);
 
-		config_setting_lookup_bool(node, "persistent", &c_persistent)
+		config_setting_lookup_bool(node, "persistent", &c_persistent);
 
         if (debug_level)
         {
@@ -292,7 +292,8 @@ int main(int argc, char **argv) {
        "%d registers, %d input registers\n", largest_coil, largest_input,\
         largest_hr, largest_ir);
 
-    mb_mapping = modbus_mapping_new(largest_coil, largest_input, largest_hr, largest_ir);
+	// Pad buffers by 2 to compensate for zero index and delimiters
+    mb_mapping = modbus_mapping_new(largest_coil+2, largest_input+2, largest_hr+2, largest_ir+2);
 
     if (mb_mapping == NULL) {
         fprintf(stderr, "Failed to allocate the mapping: %s\n",
